@@ -1,14 +1,4 @@
-# plugins/__init__.py
-from .base_plugin import MCPPlugin
-from .loader import load_plugins
-from .planning_engine import PlanningEnginePlugin
-from .world_model import WorldModelPlugin
-from .hypothesis_engine import HypothesisPlugin
+# plugins/planning_engine/__init__.py
+from .plugin import PlanningEnginePlugin
 
-__all__ = [
-    "MCPPlugin",
-    "load_plugins",
-    "PlanningEnginePlugin",
-    "WorldModelPlugin",
-    "HypothesisPlugin",
-]
+__all__ = ["PlanningEnginePlugin"]

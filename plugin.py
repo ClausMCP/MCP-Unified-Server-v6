@@ -1,112 +1,76 @@
-# plugins/world_model/plugin.py
+# plugins/planning_engine/plugin.py
 """
-Плагин World Model — обёртка над mcp_world_model.
+Планировщик — обёртка над mcp_planning_engine.
 
-ИСПРАВЛЕНО: импортировались несуществующие имена
-(world_run_forward_chaining, world_query_facts, world_get_state,
-world_predict_effects), из-за чего весь импорт падал в ImportError и плагин
-работал только заглушками. Теперь импортируются реальные async-функции движка.
+ИСПРАВЛЕНО: функции движка синхронные, а плагин делал `await f(...)`, что
+вызывало TypeError. Теперь вызовы идут через MCPPlugin._acall (работает и с
+sync-, и с async-функциями).
 """
 import json
 from typing import List, Dict
 from plugins.base_plugin import MCPPlugin
 
 try:
-    from mcp_world_model import (
-        world_add_fact, world_add_rule, world_list_rules, world_delete_rule,
-        world_run_inference, world_get_predictions, world_add_action_effect,
-        world_simulate_action, world_backward_chain,
+    from mcp_planning_engine import (
+        planning_create_plan, planning_get_plan, planning_list_plans,
+        planning_abort_plan, planning_replan
     )
-    WORLD_MODEL_AVAILABLE = True
+    PLANNING_AVAILABLE = True
 except ImportError:
-    WORLD_MODEL_AVAILABLE = False
-    async def world_add_fact(*a, **kw): return {"error": "world_model not available"}
-    async def world_add_rule(*a, **kw): return {"error": "world_model not available"}
-    async def world_list_rules(*a, **kw): return {"error": "world_model not available"}
-    async def world_delete_rule(*a, **kw): return {"error": "world_model not available"}
-    async def world_run_inference(*a, **kw): return {"error": "world_model not available"}
-    async def world_get_predictions(*a, **kw): return {"error": "world_model not available"}
-    async def world_add_action_effect(*a, **kw): return {"error": "world_model not available"}
-    async def world_simulate_action(*a, **kw): return {"error": "world_model not available"}
-    async def world_backward_chain(*a, **kw): return {"error": "world_model not available"}
+    PLANNING_AVAILABLE = False
+    def planning_create_plan(*a, **kw): return {"error": "planning not available"}
+    def planning_get_plan(*a, **kw): return {"error": "planning not available"}
+    def planning_list_plans(*a, **kw): return {"error": "planning not available"}
+    def planning_abort_plan(*a, **kw): return {"error": "planning not available"}
+    def planning_replan(*a, **kw): return {"error": "planning not available"}
 
 
-class WorldModelPlugin(MCPPlugin):
+class PlanningEnginePlugin(MCPPlugin):
     @property
     def name(self) -> str:
-        return "World Model"
+        return "Planning Engine"
 
     @property
     def depends_on(self) -> List[str]:
-        return []
+        return ["World Model"]   # для проверки предусловий/постусловий
 
     async def register_tools(self):
-        self.server.add_tool(self.add_fact)
-        self.server.add_tool(self.add_rule)
-        self.server.add_tool(self.list_rules)
-        self.server.add_tool(self.delete_rule)
-        self.server.add_tool(self.run_inference)
-        self.server.add_tool(self.get_predictions)
-        self.server.add_tool(self.simulate_action)
-        self.server.add_tool(self.backward_chain)
-        self.server.add_tool(self.add_action_effect)
+        self.server.add_tool(self.create_plan)
+        self.server.add_tool(self.get_plan)
+        self.server.add_tool(self.list_plans)
+        self.server.add_tool(self.abort_plan)
+        self.server.add_tool(self.replan)
 
     async def register_services(self):
-        self.provide_service("world_model.add_fact", self.add_fact)
-        self.provide_service("world_model.add_rule", self.add_rule)
-        self.provide_service("world_model.run_inference", self.run_inference)
-        self.provide_service("world_model.predict", self.simulate_action)
+        self.provide_service("planning_engine.create_plan", self.create_plan)
+        self.provide_service("planning_engine.get_plan", self.get_plan)
+        self.provide_service("planning_engine.list_plans", self.list_plans)
 
-    async def add_fact(self, statement: str, confidence: float = 0.9, source_tool: str = "plugin") -> str:
-        """Добавить факт в модель мира."""
-        result = await self._acall(world_add_fact, statement, confidence, source_tool)
-        await self.memory_add(f"Факт: {statement} (уверенность {confidence})",
-                              metadata={"type": "fact", "confidence": confidence})
+    async def create_plan(self, goal_id: str) -> str:
+        """Создать план для цели по её ID (GoalManager должен быть настроен)."""
+        result = await self._acall(planning_create_plan, goal_id)
+        if isinstance(result, dict) and result.get("status") == "success":
+            await self.memory_add(f"Создан план {result.get('plan_id')} для цели {goal_id}",
+                                  metadata={"type": "plan", "plan_id": result.get("plan_id")})
         return json.dumps(result, default=str)
 
-    async def add_rule(self, condition, conclusion: str, confidence: float = 0.8) -> str:
-        """Добавить правило if-then. condition может быть строкой или Dict."""
-        if isinstance(condition, str):
-            condition = {"type": "fact", "statement": condition}
-        result = await self._acall(world_add_rule, condition, conclusion, confidence)
-        await self.memory_add(f"Правило: если {condition}, то {conclusion}",
-                              metadata={"type": "rule"})
+    async def get_plan(self, plan_id: str) -> str:
+        """Получить детали плана."""
+        plan = await self._acall(planning_get_plan, plan_id)
+        return json.dumps(plan, indent=2, default=str)
+
+    async def list_plans(self, status: str = None) -> str:
+        """Список планов с фильтром по статусу."""
+        plans = await self._acall(planning_list_plans, status)
+        return json.dumps(plans, indent=2, default=str)
+
+    async def abort_plan(self, plan_id: str) -> str:
+        """Отменить выполнение плана."""
+        result = await self._acall(planning_abort_plan, plan_id)
+        await self.memory_add(f"План {plan_id} отменён", metadata={"type": "plan_aborted"})
         return json.dumps(result, default=str)
 
-    async def list_rules(self) -> str:
-        """Список всех правил."""
-        result = await self._acall(world_list_rules)
-        return json.dumps(result, indent=2, default=str)
-
-    async def delete_rule(self, rule_id: str) -> str:
-        """Удалить правило по ID."""
-        result = await self._acall(world_delete_rule, rule_id)
-        return json.dumps(result, default=str)
-
-    async def run_inference(self) -> str:
-        """Прямой вывод новых фактов на основе правил (forward chaining)."""
-        result = await self._acall(world_run_inference)
-        return json.dumps(result, default=str)
-
-    async def get_predictions(self, limit: int = 50) -> str:
-        """Получить сделанные предсказания."""
-        result = await self._acall(world_get_predictions, limit)
-        return json.dumps(result, indent=2, default=str)
-
-    async def simulate_action(self, tool_name: str, args: Dict = None) -> str:
-        """Предсказать последствия действия (инструмента)."""
-        result = await self._acall(world_simulate_action, tool_name, args or {})
-        return json.dumps(result, indent=2, default=str)
-
-    async def backward_chain(self, goal: str, max_depth: int = 5) -> str:
-        """Обратный вывод: найти цепочку, доказывающую цель."""
-        result = await self._acall(world_backward_chain, goal, max_depth)
-        return json.dumps(result, indent=2, default=str)
-
-    async def add_action_effect(self, tool_name: str, args_pattern: Dict,
-                                effect_type: str, effect_target: Dict,
-                                confidence: float = 0.5) -> str:
-        """Описать эффект действия (для предсказаний)."""
-        result = await self._acall(world_add_action_effect, tool_name, args_pattern,
-                                   effect_type, effect_target, confidence)
+    async def replan(self, plan_id: str, failed_step_index: int, reason: str = "manual") -> str:
+        """Перепланирование с указанного шага."""
+        result = await self._acall(planning_replan, plan_id, failed_step_index, reason)
         return json.dumps(result, default=str)
