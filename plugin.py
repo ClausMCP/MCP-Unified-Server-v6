@@ -1,112 +1,97 @@
-# plugins/world_model/plugin.py
+# plugins/hypothesis_engine/plugin.py
 """
-Плагин World Model — обёртка над mcp_world_model.
+Гипотезы — обёртка над mcp_hypothesis_engine.
 
-ИСПРАВЛЕНО: импортировались несуществующие имена
-(world_run_forward_chaining, world_query_facts, world_get_state,
-world_predict_effects), из-за чего весь импорт падал в ImportError и плагин
-работал только заглушками. Теперь импортируются реальные async-функции движка.
+ИСПРАВЛЕНО: функции движка синхронные, а плагин делал `await f(...)` → TypeError.
+Вызовы переведены на MCPPlugin._acall (sync/async-безопасно).
 """
 import json
 from typing import List, Dict
 from plugins.base_plugin import MCPPlugin
 
 try:
-    from mcp_world_model import (
-        world_add_fact, world_add_rule, world_list_rules, world_delete_rule,
-        world_run_inference, world_get_predictions, world_add_action_effect,
-        world_simulate_action, world_backward_chain,
+    from mcp_hypothesis_engine import (
+        hyp_create_hypothesis, hyp_add_evidence, hyp_list_hypotheses,
+        hyp_get_hypothesis, hyp_verify_now, hyp_promote_to_fact,
+        hyp_reject_hypothesis, hyp_update_hypothesis_status
     )
-    WORLD_MODEL_AVAILABLE = True
+    HYPOTHESIS_AVAILABLE = True
 except ImportError:
-    WORLD_MODEL_AVAILABLE = False
-    async def world_add_fact(*a, **kw): return {"error": "world_model not available"}
-    async def world_add_rule(*a, **kw): return {"error": "world_model not available"}
-    async def world_list_rules(*a, **kw): return {"error": "world_model not available"}
-    async def world_delete_rule(*a, **kw): return {"error": "world_model not available"}
-    async def world_run_inference(*a, **kw): return {"error": "world_model not available"}
-    async def world_get_predictions(*a, **kw): return {"error": "world_model not available"}
-    async def world_add_action_effect(*a, **kw): return {"error": "world_model not available"}
-    async def world_simulate_action(*a, **kw): return {"error": "world_model not available"}
-    async def world_backward_chain(*a, **kw): return {"error": "world_model not available"}
+    HYPOTHESIS_AVAILABLE = False
+    def hyp_create_hypothesis(*a, **kw): return {"error": "hypothesis not available"}
+    def hyp_add_evidence(*a, **kw): return {"error": "hypothesis not available"}
+    def hyp_list_hypotheses(*a, **kw): return {"error": "hypothesis not available"}
+    def hyp_get_hypothesis(*a, **kw): return {"error": "hypothesis not available"}
+    def hyp_verify_now(*a, **kw): return {"error": "hypothesis not available"}
+    def hyp_promote_to_fact(*a, **kw): return {"error": "hypothesis not available"}
+    def hyp_reject_hypothesis(*a, **kw): return {"error": "hypothesis not available"}
+    def hyp_update_hypothesis_status(*a, **kw): return {"error": "hypothesis not available"}
 
 
-class WorldModelPlugin(MCPPlugin):
+class HypothesisPlugin(MCPPlugin):
     @property
     def name(self) -> str:
-        return "World Model"
+        return "Hypothesis Engine"
 
     @property
     def depends_on(self) -> List[str]:
-        return []
+        return ["Planning Engine", "World Model"]
 
     async def register_tools(self):
-        self.server.add_tool(self.add_fact)
-        self.server.add_tool(self.add_rule)
-        self.server.add_tool(self.list_rules)
-        self.server.add_tool(self.delete_rule)
-        self.server.add_tool(self.run_inference)
-        self.server.add_tool(self.get_predictions)
-        self.server.add_tool(self.simulate_action)
-        self.server.add_tool(self.backward_chain)
-        self.server.add_tool(self.add_action_effect)
+        self.server.add_tool(self.create_hypothesis)
+        self.server.add_tool(self.add_evidence)
+        self.server.add_tool(self.list_hypotheses)
+        self.server.add_tool(self.get_hypothesis)
+        self.server.add_tool(self.verify_now)
+        self.server.add_tool(self.promote_to_fact)
+        self.server.add_tool(self.reject_hypothesis)
+        self.server.add_tool(self.update_status)
 
     async def register_services(self):
-        self.provide_service("world_model.add_fact", self.add_fact)
-        self.provide_service("world_model.add_rule", self.add_rule)
-        self.provide_service("world_model.run_inference", self.run_inference)
-        self.provide_service("world_model.predict", self.simulate_action)
+        self.provide_service("hypothesis_engine.create", self.create_hypothesis)
+        self.provide_service("hypothesis_engine.verify", self.verify_now)
 
-    async def add_fact(self, statement: str, confidence: float = 0.9, source_tool: str = "plugin") -> str:
-        """Добавить факт в модель мира."""
-        result = await self._acall(world_add_fact, statement, confidence, source_tool)
-        await self.memory_add(f"Факт: {statement} (уверенность {confidence})",
-                              metadata={"type": "fact", "confidence": confidence})
+    async def create_hypothesis(self, statement: str, confidence: float = 0.3,
+                                explanation: str = "", verification_plan: List[Dict] = None,
+                                source_tool: str = "plugin") -> str:
+        result = await self._acall(hyp_create_hypothesis, statement, confidence, explanation,
+                                   verification_plan or [], source_tool)
+        hid = result.get("hypothesis_id") if isinstance(result, dict) else None
+        await self.memory_add(f"Гипотеза: {statement[:80]} (уверенность {confidence})",
+                              metadata={"type": "hypothesis", "hypothesis_id": hid})
         return json.dumps(result, default=str)
 
-    async def add_rule(self, condition, conclusion: str, confidence: float = 0.8) -> str:
-        """Добавить правило if-then. condition может быть строкой или Dict."""
-        if isinstance(condition, str):
-            condition = {"type": "fact", "statement": condition}
-        result = await self._acall(world_add_rule, condition, conclusion, confidence)
-        await self.memory_add(f"Правило: если {condition}, то {conclusion}",
-                              metadata={"type": "rule"})
+    async def add_evidence(self, hypothesis_id: str, evidence: str,
+                           source: str, confidence: float = 0.5) -> str:
+        result = await self._acall(hyp_add_evidence, hypothesis_id, evidence, source, confidence)
+        await self.memory_add(f"Свидетельство для {hypothesis_id}: {evidence[:80]}",
+                              metadata={"type": "evidence"})
         return json.dumps(result, default=str)
 
-    async def list_rules(self) -> str:
-        """Список всех правил."""
-        result = await self._acall(world_list_rules)
+    async def list_hypotheses(self, status: str = None) -> str:
+        result = await self._acall(hyp_list_hypotheses, status)
         return json.dumps(result, indent=2, default=str)
 
-    async def delete_rule(self, rule_id: str) -> str:
-        """Удалить правило по ID."""
-        result = await self._acall(world_delete_rule, rule_id)
+    async def get_hypothesis(self, hypothesis_id: str) -> str:
+        result = await self._acall(hyp_get_hypothesis, hypothesis_id)
+        return json.dumps(result, indent=2, default=str)
+
+    async def verify_now(self, hypothesis_id: str) -> str:
+        result = await self._acall(hyp_verify_now, hypothesis_id)
         return json.dumps(result, default=str)
 
-    async def run_inference(self) -> str:
-        """Прямой вывод новых фактов на основе правил (forward chaining)."""
-        result = await self._acall(world_run_inference)
+    async def promote_to_fact(self, hypothesis_id: str) -> str:
+        result = await self._acall(hyp_promote_to_fact, hypothesis_id)
+        await self.memory_add(f"Гипотеза {hypothesis_id} продвинута до факта",
+                              metadata={"type": "hypothesis_promoted"})
         return json.dumps(result, default=str)
 
-    async def get_predictions(self, limit: int = 50) -> str:
-        """Получить сделанные предсказания."""
-        result = await self._acall(world_get_predictions, limit)
-        return json.dumps(result, indent=2, default=str)
+    async def reject_hypothesis(self, hypothesis_id: str, reason: str) -> str:
+        result = await self._acall(hyp_reject_hypothesis, hypothesis_id, reason)
+        return json.dumps(result, default=str)
 
-    async def simulate_action(self, tool_name: str, args: Dict = None) -> str:
-        """Предсказать последствия действия (инструмента)."""
-        result = await self._acall(world_simulate_action, tool_name, args or {})
-        return json.dumps(result, indent=2, default=str)
-
-    async def backward_chain(self, goal: str, max_depth: int = 5) -> str:
-        """Обратный вывод: найти цепочку, доказывающую цель."""
-        result = await self._acall(world_backward_chain, goal, max_depth)
-        return json.dumps(result, indent=2, default=str)
-
-    async def add_action_effect(self, tool_name: str, args_pattern: Dict,
-                                effect_type: str, effect_target: Dict,
-                                confidence: float = 0.5) -> str:
-        """Описать эффект действия (для предсказаний)."""
-        result = await self._acall(world_add_action_effect, tool_name, args_pattern,
-                                   effect_type, effect_target, confidence)
+    async def update_status(self, hypothesis_id: str, status: str,
+                            confidence: float = None, rejection_reason: str = None) -> str:
+        result = await self._acall(hyp_update_hypothesis_status, hypothesis_id, status,
+                                   confidence, rejection_reason)
         return json.dumps(result, default=str)
