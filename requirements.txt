@@ -1,0 +1,50 @@
+# MCP project dependencies
+# Install: pip install -r requirements.txt
+# Then:    python -m playwright install chromium
+
+# --- MCP core ---
+mcp>=1.0,<2.0
+
+# --- Web / network ---
+requests>=2.31,<3.0
+urllib3>=2.0,<3.0
+beautifulsoup4>=4.12,<5.0
+feedparser>=6.0,<7.0
+trafilatura>=1.8,<3.0
+readability-lxml>=0.8,<1.0
+playwright>=1.44,<2.0
+html-table-takeout>=0.2
+
+# --- Documents / office ---
+python-docx>=1.1,<2.0
+python-pptx>=0.6.23,<2.0
+openpyxl>=3.1,<4.0
+pypdf>=4.0,<6.0
+PyPDF2>=3.0,<4.0
+pypdfium2>=4.28,<5.0
+reportlab>=4.0,<5.0
+ebooklib>=0.18,<1.0
+
+# --- OCR / images / media ---
+Pillow>=10.0,<12.0
+pytesseract>=0.3.10,<1.0
+mutagen>=1.47,<2.0
+
+# --- Data / vector / ML ---
+numpy>=1.26,<3.0
+pandas>=2.1,<3.0
+chromadb>=0.4.24,<1.0
+sentence-transformers>=2.6,<4.0
+duckdb>=0.10,<2.0
+
+# --- System / utils ---
+psutil>=5.9,<7.0
+watchdog>=4.0,<7.0
+xxhash>=3.4,<4.0
+PyYAML>=6.0,<7.0
+python-dotenv>=1.0,<2.0
+keyring>=24.0,<26.0
+icalendar>=5.0,<7.0
+
+# --- Windows only (Outlook integration in mcp_calendar.py) ---
+pywin32>=306; sys_platform == "win32"

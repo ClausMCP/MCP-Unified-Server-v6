@@ -1,0 +1,266 @@
+Summary of Changes (compared to the first server version)
+1. New Features
+Office Editor (mcp_office_editor):
+
+Delete empty rows in Excel
+
+Sort by one or multiple columns
+
+Add borders and cell formatting (bold, color, alignment)
+
+Replace text in Word documents (docx_replace_text)
+
+Add slides to PowerPoint presentations
+
+External Memory Palace (mcp_mempalace):
+
+Index code and conversations for semantic search
+
+Commands: mempalace_init, mempalace_mine, mempalace_search
+
+Asynchronous Task Manager (mcp_task_manager):
+
+Background execution of long-running operations
+
+Pause, resume, cancel, and progress saving
+
+Task recovery after server restart
+
+Task Scheduler (mcp_scheduler):
+
+Run jobs on intervals or cron expressions
+
+Centralized Logging (mcp_log_server):
+
+Receive logs via UDP/HTTP, log rotation, search logs
+
+Enhanced Web Reader:
+
+Extract tables, images, OCR text
+
+Dynamic JS rendering via Playwright
+
+Extended File Search:
+
+Iterative directory walks (no recursion → prevents RecursionError)
+
+Indexing of Office file contents (DOCX, XLSX, PPTX)
+
+2. Security & Stability
+Rate Limiter + Circuit Breaker: limit external service calls, automatic disabling on repeated failures.
+
+ZipSlip/TarSlip protection when extracting archives.
+
+Stronger path validation:
+
+Block system directories (Windows, Program Files)
+
+UNC path validation and injection prevention
+
+Filter AI hallucinations (is_placeholder_path)
+
+Deadlock & race condition fixes:
+
+Moved archiving out of locks in ConversationMemory
+
+Context managers for database connections
+
+Fixed deadlocks in logging and scheduler
+
+Thread-safe caches:
+
+SQLite backend for chunk cache (instead of memory)
+
+TTL-based expiration
+
+3. Automation & Usability
+Automatic Conversation Memory (ConversationMemory v5.4):
+
+Auto-compression, archiving of old entries (permanent archive)
+
+Auto-restore dialogs from archive
+
+Batch Operation Validation (batch_validate_helper):
+
+Pre-check all sources/destinations before execution
+
+Chunked execution (chunk_size)
+
+!command syntax: direct tool calls with !tool_name key=value
+
+Built-in Help (mcp_help):
+
+help() – list all tools
+
+help(tool_name) – detailed description
+
+Dialog Export (mcp_export_dialog, mcp_export_lmstudio):
+
+Markdown/PDF (via pandoc+wkhtmltopdf)
+
+Auto-export all LM Studio chats
+
+4. Critical Bug Fixes
+Recursive walks in get_file_tree and analyze_directory replaced with iterative (stack).
+
+Graceful shutdown – background threads stopped properly.
+
+Dialog isolation via contextvars.
+
+Embedding dimension check in RAG (prevents crashes when changing models).
+
+5. Support for More File Formats
+Office: DOCX, XLSX, PPTX (read and edit)
+
+Media: EXIF, ID3, ffprobe, OCR (Tesseract)
+
+Archives: ZIP, TAR, 7z, RAR
+
+Databases: SQLite, DuckDB, ODBC
+
+Cloud storage: rclone (S3, Dropbox, Google Drive, etc.)
+
+6. Easier Installation & Updates
+Hybrid installer (setup.bat / mcp_setup.py):
+
+Offline installation from python_deps folder
+
+Online mode to download missing packages
+
+Auto-fix LM Studio config (replace python.exe paths).
+
+Add to startup (hidden server launch).
+
+Краткие изменения по сравнению с первой версией серверов MCP
+1. Новые возможности
+Офисный редактор (mcp_office_editor):
+
+Удаление пустых строк в Excel
+
+Сортировка по одному/нескольким столбцам
+
+Добавление рамок и форматирование ячеек (жирный, цвет, выравнивание)
+
+Замена текста в Word (docx_replace_text)
+
+Добавление слайдов в PowerPoint
+
+Интеграция с внешней памятью (mcp_mempalace):
+
+Индексация кода и диалогов (семантический поиск)
+
+Команды: mempalace_init, mempalace_mine, mempalace_search
+
+Асинхронные задачи (mcp_task_manager):
+
+Поддержка фонового выполнения долгих операций
+
+Возможность паузы, возобновления, отмены
+
+Сохранение прогресса и восстановление после перезапуска
+
+Планировщик задач (mcp_scheduler):
+
+Выполнение заданий по интервалу или cron-выражению
+
+Централизованное логирование (mcp_log_server):
+
+Приём логов по UDP/HTTP, ротация файлов, поиск по логам
+
+Улучшенный веб-ридер:
+
+Извлечение таблиц, изображений, OCR текста
+
+Поддержка динамического JS через Playwright
+
+Расширенный поиск по файлам:
+
+Итеративные обходы (без рекурсии) для устранения RecursionError
+
+Индексация содержимого офисных файлов (DOCX, XLSX, PPTX)
+
+2. Безопасность и стабильность
+Rate Limiter + Circuit Breaker: ограничение вызовов к внешним сервисам, автоматическое отключение при частых ошибках.
+
+Защита от ZipSlip/TarSlip при распаковке архивов.
+
+Усиленная проверка путей:
+
+Блокировка системных директорий (Windows, Program Files)
+
+Валидация UNC-путей и защита от подстановки
+
+Фильтрация AI-галлюцинаций (is_placeholder_path)
+
+Устранение дедлоков и гонок:
+
+Вынос архивации из блокировки в ConversationMemory
+
+Контекстные менеджеры для соединений с БД
+
+Исправление мёртвых блокировок в логах и планировщике
+
+Потокобезопасные кэши:
+
+SQLite-бэкенд для chunk cache (вместо памяти)
+
+TTL-очистка просроченных записей
+
+3. Автоматизация и удобство
+Автоматическая память диалогов (ConversationMemory v5.4):
+
+Авто-сжатие, архивация старых записей (бессрочный архив)
+
+Авто-восстановление диалогов из архива
+
+Batch-валидация операций (batch_validate_helper):
+
+Предварительная проверка всех источников/назначений
+
+Чанковое выполнение (chunk_size)
+
+!command синтаксис: прямой вызов инструментов через !tool_name key=value
+
+Встроенная справка (mcp_help):
+
+help() – список всех инструментов
+
+help(tool_name) – детальное описание
+
+Экспорт диалогов (mcp_export_dialog, mcp_export_lmstudio):
+
+Markdown/PDF (через pandoc+wkhtmltopdf)
+
+Автоматический экспорт всех чатов LM Studio
+
+4. Исправление критических ошибок
+Рекурсивные обходы в get_file_tree и analyze_directory заменены на итеративные (стек).
+
+Остановка фоновых потоков при завершении сервера (graceful shutdown).
+
+Синхронизация dialog_ctx через contextvars для изоляции диалогов.
+
+Проверка размерности эмбеддингов в RAG (избежание краша при смене модели).
+
+5. Поддержка большего числа форматов
+Офисные: DOCX, XLSX, PPTX (чтение и редактирование)
+
+Медиа: EXIF, ID3, ffprobe, OCR (Tesseract)
+
+Архивы: ZIP, TAR, 7z, RAR
+
+Базы данных: SQLite, DuckDB, ODBC
+
+Облачные хранилища: rclone (S3, Dropbox, Google Drive и др.)
+
+6. Упрощение установки и обновления
+Гибридный установщик (setup.bat / mcp_setup.py):
+
+Offline-установка из локальной папки python_deps
+
+Online-режим для скачивания недостающих пакетов
+
+Автофикс конфигурации LM Studio (замена путей к python.exe).
+
+Добавление в автозагрузку (скрытый запуск сервера).
+
